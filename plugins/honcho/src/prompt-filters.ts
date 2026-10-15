@@ -1,5 +1,7 @@
 // Prompt classifiers shared by the UserPromptSubmit read and write hooks.
 
+import { existsSync } from "fs";
+
 // Terse acknowledgements
 export const TRIVIAL_REPLY_PATTERN = /^(yes|no|ok|sure|thanks|y|n|yep|nope|yeah|nah|continue|go ahead|do it|proceed)$/i;
 
@@ -36,9 +38,13 @@ export function isHarnessInjected(prompt: string): boolean {
 }
 
 // A slash command or skill invocation ("/compact", "/honcho:config", "/loop 5m
-// /foo"). A prompt that opens with an absolute path is not one.
-const SLASH_COMMAND = /^\/[\w:-]+(?:\s|$)/;
+// /foo"). A prompt that opens with an absolute path is not one, including a
+// single-component path such as "/tmp is missing": Claude Code sends that to
+// the model as text, so a name that exists at the filesystem root is a path.
+const SLASH_COMMAND = /^\/([\w:-]+)(?:\s|$)/;
 
 export function isSlashCommand(prompt: string): boolean {
-  return SLASH_COMMAND.test(stripLeadingReminders(prompt).trim());
+  const name = SLASH_COMMAND.exec(stripLeadingReminders(prompt).trim())?.[1];
+  if (!name) return false;
+  return name.includes(":") || !existsSync(`/${name}`);
 }

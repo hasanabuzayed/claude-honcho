@@ -11,5 +11,6 @@ describe("stripChatFiller", () => {
   test("keeps facts, including an answer that is only one paragraph", () => {
     expect(stripChatFiller("- a\n\n- b")).toBe("- a\n\n- b");
     expect(stripChatFiller("If you want details, they live in DEV-2024.")).toBe("If you want details, they live in DEV-2024.");
+    expect(stripChatFiller("- a\n\nIf you want details, they live in DEV-2024.")).toBe("- a\n\nIf you want details, they live in DEV-2024.");
   });
 });

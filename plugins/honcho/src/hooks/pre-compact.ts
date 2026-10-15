@@ -20,13 +20,20 @@ const FACTS_ONLY =
   "Answer with facts only, as a terse bullet list written in the third person. " +
   "No preamble, no closing summary, no offers to help further, and no questions.";
 
-// A trailing offer such as "If you'd like, I can convert this into…".
-const CHAT_FILLER = /^(if you('d| would)? like|if you want|let me know|would you like|want me to|i can also)\b/i;
+// A trailing offer such as "If you'd like, I can convert this into…". An "if
+// you want" paragraph counts only when it goes on to offer something, so "If
+// you want details, they live in DEV-2024." stays.
+const CHAT_OFFER = /^(let me know|would you like|want me to|i can also)\b/i;
+const CONDITIONAL_OFFER = /^(if you('d| would)? like|if you want)\b.*\b(i can|i could|i'll|i will|let me know|just ask|happy to)\b/is;
+
+function isChatFiller(paragraph: string): boolean {
+  return CHAT_OFFER.test(paragraph) || CONDITIONAL_OFFER.test(paragraph);
+}
 
 /** Drop trailing paragraphs that are chat filler rather than facts. */
 export function stripChatFiller(answer: string): string {
   const paragraphs = answer.trim().split(/\n\s*\n/);
-  while (paragraphs.length > 1 && CHAT_FILLER.test(paragraphs[paragraphs.length - 1].trim())) {
+  while (paragraphs.length > 1 && isChatFiller(paragraphs[paragraphs.length - 1].trim())) {
     paragraphs.pop();
   }
   return paragraphs.join("\n\n");
