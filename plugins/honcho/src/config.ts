@@ -598,6 +598,12 @@ function mergeWithEnvVars(config: HonchoCLAUDEConfig): HonchoCLAUDEConfig {
   return config;
 }
 
+// config.json can hold an API key, so a new file is created owner-only. The
+// mode applies only on creation; an existing file keeps its permissions.
+function writeConfigFile(data: unknown): void {
+  writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
+}
+
 /**
  * Write-back: read-merge-write to avoid clobbering other hosts' config.
  *
@@ -692,7 +698,7 @@ export function saveConfig(config: HonchoCLAUDEConfig): void {
 
   existing.hosts[host] = hostEntry;
 
-  writeFileSync(CONFIG_FILE, JSON.stringify(existing, null, 2));
+  writeConfigFile(existing);
 }
 
 /**
@@ -714,7 +720,7 @@ export function saveRootField(field: string, value: unknown): void {
   }
 
   existing[field] = value;
-  writeFileSync(CONFIG_FILE, JSON.stringify(existing, null, 2));
+  writeConfigFile(existing);
 }
 
 export function getClaudeSettingsPath(): string {
