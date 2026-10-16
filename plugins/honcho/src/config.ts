@@ -1,7 +1,7 @@
 import { homedir } from "os";
 import { join, basename, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { captureGitState } from "./git.js";
 import { getInstanceIdForCwd, getClaudeInstanceId } from "./cache.js";
 import { telemetryHeaders } from "@honcho-ai/harness-plugin-core";
@@ -598,9 +598,10 @@ function mergeWithEnvVars(config: HonchoCLAUDEConfig): HonchoCLAUDEConfig {
   return config;
 }
 
-// config.json can hold an API key, so a new file is created owner-only. The
-// mode applies only on creation; an existing file keeps its permissions.
+// config.json can hold an API key, so it is kept owner-only. The mode option
+// applies only on creation, so an existing file is restricted before the write.
 function writeConfigFile(data: unknown): void {
+  if (existsSync(CONFIG_FILE)) chmodSync(CONFIG_FILE, 0o600);
   writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
