@@ -56,4 +56,18 @@ describe("isSlashCommand", () => {
   ])("%p -> %p", (prompt, expected) => {
     expect(isSlashCommand(prompt)).toBe(expected);
   });
+
+  test("matches either tag order", () => {
+    expect(isSlashCommand("<command-message>honcho:status</command-message>\n<command-name>/honcho:status</command-name>")).toBe(true);
+    expect(isSlashCommand("<command-name>/model</command-name>\n<command-message>model</command-message>")).toBe(true);
+  });
+
+  test("matches behind a leading reminder", () => {
+    expect(isSlashCommand(worktreeNotice + "<command-name>/honcho</command-name>")).toBe(true);
+  });
+
+  test("does not match command output or typed text", () => {
+    expect(isSlashCommand("<local-command-stdout>ok</local-command-stdout>")).toBe(false);
+    expect(isSlashCommand("what does <command-name> mean?")).toBe(false);
+  });
 });

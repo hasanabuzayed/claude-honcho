@@ -1,4 +1,4 @@
-// Prompt classifiers shared by the UserPromptSubmit read and write hooks.
+// Prompt classifiers shared by the prompt hooks and Stop's transcript parser.
 
 import { existsSync } from "fs";
 
@@ -32,6 +32,10 @@ export function stripLeadingReminders(prompt: string): string {
   return prompt.replace(LEADING_REMINDERS, "");
 }
 
+// A typed slash command or skill invocation, recorded as
+// `<command-message>…</command-message> <command-name>/…</command-name>` (either tag first).
+const SLASH_COMMAND_ENVELOPE = /^<command-(name|message)>/;
+
 export function isHarnessInjected(prompt: string): boolean {
   const trimmed = stripLeadingReminders(prompt).trim();
   return !trimmed || HARNESS_INJECTED_PATTERNS.some((p) => p.test(trimmed));
@@ -44,7 +48,10 @@ export function isHarnessInjected(prompt: string): boolean {
 const SLASH_COMMAND = /^\/([\w:-]+)(?:\s|$)/;
 
 export function isSlashCommand(prompt: string): boolean {
-  const name = SLASH_COMMAND.exec(stripLeadingReminders(prompt).trim())?.[1];
+  const trimmed = stripLeadingReminders(prompt).trim();
+  // Stop sees transcript envelopes; UserPromptSubmit may see the raw command.
+  if (SLASH_COMMAND_ENVELOPE.test(trimmed)) return true;
+  const name = SLASH_COMMAND.exec(trimmed)?.[1];
   if (!name) return false;
   return name.includes(":") || !existsSync(`/${name}`);
 }
