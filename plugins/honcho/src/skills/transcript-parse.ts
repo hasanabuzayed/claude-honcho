@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import { stripLeadingReminders } from "../prompt-filters.js";
+import { isHarnessInjected, isSlashCommand, stripLeadingReminders } from "../prompt-filters.js";
 
 export interface TranscriptEntry {
   type?: string;
@@ -39,18 +39,11 @@ function entryType(entry: TranscriptEntry): string | undefined {
   return entry.type || entry.role;
 }
 
-/** True for a real user-typed prompt. Excludes tool_results, isMeta entries, and `<...>` command caveats. */
+/** Same prompt classifier as the live hooks; literal XML is still user text. */
 function isRealUserPrompt(entry: TranscriptEntry): boolean {
   if (entry.isMeta) return false;
-  const mc = entry.message?.content ?? entry.content;
-  const text =
-    typeof mc === "string"
-      ? mc
-      : Array.isArray(mc)
-        ? mc.filter((b) => b.type === "text" && b.text).map((b) => b.text!).join("")
-        : "";
-  const trimmed = stripLeadingReminders(text).trim();
-  return trimmed.length > 0 && !trimmed.startsWith("<");
+  const text = userText(entry);
+  return !isHarnessInjected(text) && !isSlashCommand(text);
 }
 
 function userText(entry: TranscriptEntry): string {
@@ -79,7 +72,7 @@ function readLines(transcriptPath: string): string[] {
 /**
  * Full-conversation parse: user + assistant messages in order, each with its
  * timestamp and the cwd/gitBranch for session mapping. Skips isMeta / isSidechain
- * / tool-result-only / `<...>` command caveats.
+ * / tool-result-only / harness-injected turns / slash commands.
  */
 export function parseTranscriptForBackfill(transcriptPath: string): {
   messages: ParsedMessage[];

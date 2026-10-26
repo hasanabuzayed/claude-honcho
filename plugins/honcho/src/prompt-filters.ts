@@ -13,14 +13,21 @@ export function isTerseReply(prompt: string): boolean {
 // the human never typed: background-task events, slash-command stdout, injected
 // system reminders.
 const HARNESS_INJECTED_PATTERNS = [
-  /^<task-notification>/,
+  /^<task-notification(?=[\s/>])/,
   // Another Claude Code session's message (SendMessage), delivered in the user slot.
   // It is that agent's text, not the human's.
-  /^<cross-session-message\b/,
+  /^<cross-session-message(?=[\s/>])/,
+  // Subagent hand-backs are also delivered as user turns. Require a tag-name
+  // delimiter, not \b (which would also match <agent-message-example>).
+  /^<agent-message(?=[\s/>])/,
+  // Keep known scaffold excluded when replay uses this classifier instead of
+  // rejecting all XML-looking user content.
+  /^<channel(?=[\s/>])/,
+  /^<local-command-caveat(?=[\s/>])/,
   /^<local-command-stdout>/,
   /^<command-name>/,
   /^<command-message>/,
-  /^<system-reminder>/,
+  /^<system-reminder(?=[\s/>])/,
   /^<bash-(stdout|stderr|input)>/,
   // `<<...>>` sentinels the runtime re-submits through the user slot and
   // resolves at fire time (e.g. <<autonomous-loop-dynamic>> from /loop wakeups)
@@ -29,7 +36,7 @@ const HARNESS_INJECTED_PATTERNS = [
 
 // Reminder blocks the harness prepends to a typed prompt (worktree notice,
 // background-task status); the user's text follows them.
-const LEADING_REMINDERS = /^(?:\s*<system-reminder>[\s\S]*?<\/system-reminder>)+\s*/;
+const LEADING_REMINDERS = /^(?:\s*<system-reminder(?=[\s>])[^>]*>[\s\S]*?<\/system-reminder>)+\s*/;
 
 export function stripLeadingReminders(prompt: string): string {
   return prompt.replace(LEADING_REMINDERS, "");

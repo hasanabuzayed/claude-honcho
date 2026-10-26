@@ -1,11 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { isHarnessInjected, isSlashCommand, stripLeadingReminders } from "../src/prompt-filters";
 
+import { attributedReminder, injectedPrompts, userPrompts } from "./harness-fixtures";
+
 const worktreeNotice =
   "<system-reminder>\nYou are operating in a git worktree.\nWorktree path: /tmp/wt\n</system-reminder>\n\n";
 const taskNotice = "<system-reminder>\nThe user started your suggested background task.\n</system-reminder>\n";
 
 describe("stripLeadingReminders", () => {
+  test.each(userPrompts)("preserves user text: $prompt", ({ prompt, text }) => {
+    expect(stripLeadingReminders(prompt)).toBe(text);
+  });
+
+  test("strips attributed reminders with quoted angle brackets", () => {
+    expect(stripLeadingReminders('<system-reminder note="a > b">notice</system-reminder>\nhello')).toBe("hello");
+  });
+
   test("removes a leading reminder and keeps the typed text", () => {
     expect(stripLeadingReminders(worktreeNotice + "is this resolved on main?")).toBe("is this resolved on main?");
   });
@@ -21,6 +31,14 @@ describe("stripLeadingReminders", () => {
 });
 
 describe("isHarnessInjected", () => {
+  test.each(injectedPrompts)("rejects harness envelope %p", (prompt) => {
+    expect(isHarnessInjected(prompt)).toBe(true);
+  });
+
+  test.each(userPrompts)("accepts user text: $prompt", ({ prompt }) => {
+    expect(isHarnessInjected(prompt)).toBe(false);
+  });
+
   test("typed prompt behind a reminder is user input", () => {
     expect(isHarnessInjected(worktreeNotice + "This live llm test failed")).toBe(false);
   });
@@ -61,6 +79,8 @@ describe("isHarnessInjected", () => {
 describe("isSlashCommand", () => {
   test.each([
     ["/compact", true],
+    [attributedReminder + "/honcho:status", true],
+    [attributedReminder + "/tmp is missing", false],
     ["/honcho:config", true],
     ["/loop 5m /foo", true],
     [worktreeNotice + "/honcho:status", true],

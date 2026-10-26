@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { getCurrentTurnAssistantMessages } from "../src/hooks/stop";
+import { attributedReminder, injectedPrompts, userPrompts } from "./harness-fixtures";
 
 function transcript(lines: object[]): string {
   const path = join(mkdtempSync(join(tmpdir(), "stop-test-")), "t.jsonl");
@@ -22,6 +23,26 @@ const msgA = { type: "assistant", timestamp: "t1", message: { content: [{ type: 
 const msgB = { type: "assistant", timestamp: "t2", message: { content: [{ type: "text", text: "narration B" }] } };
 
 describe("getCurrentTurnAssistantMessages segment boundaries", () => {
+  test.each(userPrompts)("typed content starts a new segment: $prompt", ({ prompt: text }) => {
+    const path = transcript([prompt, msgA, { type: "user", message: { content: text } }, msgB]);
+    expect(getCurrentTurnAssistantMessages(path).map((b) => b.text)).toEqual(["narration B"]);
+  });
+
+  test.each(injectedPrompts)("harness content alone is not a human turn: %p", (text) => {
+    const path = transcript([{ type: "user", message: { content: text } }, msgA]);
+    expect(getCurrentTurnAssistantMessages(path)).toEqual([]);
+  });
+
+  test("attributed reminder followed by a slash command starts a segment", () => {
+    const path = transcript([prompt, msgA, { type: "user", message: { content: attributedReminder + "/honcho:status" } }, msgB]);
+    expect(getCurrentTurnAssistantMessages(path).map((b) => b.text)).toEqual(["narration B"]);
+  });
+
+  test("a subagent report with system provenance is a wakeup boundary", () => {
+    const path = transcript([prompt, msgA, { type: "user", promptSource: "system", message: { content: injectedPrompts[1] } }, msgB]);
+    expect(getCurrentTurnAssistantMessages(path).map((b) => b.text)).toEqual(["narration B"]);
+  });
+
   test("first firing collects the whole turn", () => {
     const path = transcript([prompt, msgA]);
     expect(getCurrentTurnAssistantMessages(path).map((b) => b.text)).toEqual(["narration A"]);

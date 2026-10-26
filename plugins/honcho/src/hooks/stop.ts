@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "fs";
 import { getInstanceIdForCwd, chunkContent, addMessagesBatched } from "../cache.js";
 import { logHook, logApiCall, setLogContext } from "../log.js";
 import { visStopMessage } from "../visual.js";
-import { isSlashCommand, stripLeadingReminders } from "../prompt-filters.js";
+import { isHarnessInjected, isSlashCommand } from "../prompt-filters.js";
 
 interface HookInput {
   session_id?: string;
@@ -42,11 +42,11 @@ function userText(entry: TranscriptEntry): string {
   return "";
 }
 
-/** True for a real user-typed prompt. Excludes tool_results, isMeta entries, and `<...>` command caveats. */
+/** Same prompt classifier as the live hooks; literal XML is still user text. */
 function isRealUserPrompt(entry: TranscriptEntry): boolean {
   if (entry.isMeta) return false;
-  const trimmed = stripLeadingReminders(userText(entry)).trim();
-  return trimmed.length > 0 && !trimmed.startsWith("<");
+  const text = userText(entry);
+  return !isHarnessInjected(text) && !isSlashCommand(text);
 }
 
 /** Typed slash command or skill invocation. Not prompt text to upload, but it starts
