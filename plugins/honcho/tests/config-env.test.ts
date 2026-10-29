@@ -102,4 +102,20 @@ describe("HONCHO_AI_PEER and HONCHO_WORKSPACE over a config file", () => {
       expect(JSON.parse(readFileSync(configPath, "utf-8")).hosts.claude_code.aiPeer).toBe("mine");
     });
   });
+
+  test("a host block without a workspace still follows HONCHO_WORKSPACE, then root", () => {
+    const run = (env: Record<string, string>) => withHome({ workspace: "root-ws", hosts: { claude_code: {} } }, (home) =>
+      runInSandbox(home, `import { loadConfig } from "./src/config.ts";
+        console.log(loadConfig("claude_code")?.workspace);`, env));
+    expect(run({ HONCHO_WORKSPACE: "repo-ws" })).toBe("repo-ws");
+    expect(run({})).toBe("root-ws");
+    expect(run({ HONCHO_WORKSPACE: "" })).toBe("root-ws");
+  });
+
+  test("an explicit host-block workspace still wins over HONCHO_WORKSPACE", () => {
+    const out = withHome({ hosts: { claude_code: { workspace: "pinned" } } }, (home) =>
+      runInSandbox(home, `import { loadConfig } from "./src/config.ts";
+        console.log(loadConfig("claude_code")?.workspace);`, { HONCHO_WORKSPACE: "repo-ws" }));
+    expect(out).toBe("pinned");
+  });
 });

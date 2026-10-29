@@ -479,8 +479,10 @@ function resolveConfig(raw: HonchoFileConfig, host: HonchoHost): HonchoCLAUDECon
     workspace = raw.workspace ?? DEFAULT_WORKSPACE[host];
     aiPeer = raw.aiPeer ?? hostBlock?.aiPeer ?? DEFAULT_AI_PEER[host];
   } else if (hostBlock) {
-    // Host-specific block takes precedence
-    workspace = hostBlock.workspace ?? DEFAULT_WORKSPACE[host];
+    // Host-specific block takes precedence. saveConfig() writes a host block
+    // on the first session, usually without a workspace; then a per-process
+    // HONCHO_WORKSPACE (e.g. one workspace per repo) and root still apply.
+    workspace = hostBlock.workspace ?? (process.env.HONCHO_WORKSPACE || raw.workspace) ?? DEFAULT_WORKSPACE[host];
     aiPeer = hostBlock.aiPeer ?? DEFAULT_AI_PEER[host];
   } else {
     // Legacy flat-field fallback for configs written before hosts block.
