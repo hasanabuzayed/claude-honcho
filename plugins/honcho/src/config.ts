@@ -570,11 +570,13 @@ export function loadConfigFromEnv(host?: HonchoHost): HonchoCLAUDEConfig | null 
 
 /**
  * Merge file-based config with environment variable overrides.
- * Only merges global (non-host-specific) env vars. workspace and aiPeer
- * are host-specific fields already resolved by resolveConfig() from the
- * hosts block -- generic env vars like HONCHO_WORKSPACE must not override
- * them here, otherwise a value set for one host clobbers the other.
- * (HONCHO_WORKSPACE IS respected in loadConfigFromEnv when no file exists.)
+ * Only merges global (non-host-specific) env vars. workspace is a
+ * host-specific field already resolved by resolveConfig() from the hosts
+ * block -- HONCHO_WORKSPACE must not override it here, otherwise a value set
+ * for one host clobbers the other. (HONCHO_WORKSPACE IS respected in
+ * loadConfigFromEnv when no file exists.) HONCHO_AI_PEER is the exception:
+ * set it per process (e.g. `HONCHO_AI_PEER=codex codex`) so a host that runs
+ * this plugin under another name gets its own AI peer.
  */
 function mergeWithEnvVars(config: HonchoCLAUDEConfig): HonchoCLAUDEConfig {
   if (process.env.HONCHO_API_KEY) {
@@ -582,6 +584,9 @@ function mergeWithEnvVars(config: HonchoCLAUDEConfig): HonchoCLAUDEConfig {
   }
   if (process.env.HONCHO_PEER_NAME) {
     config.peerName = process.env.HONCHO_PEER_NAME;
+  }
+  if (process.env.HONCHO_AI_PEER) {
+    config.aiPeer = process.env.HONCHO_AI_PEER;
   }
   if (process.env.HONCHO_ENABLED === "false") {
     config.enabled = false;
@@ -665,8 +670,17 @@ export function saveConfig(config: HonchoCLAUDEConfig): void {
   // Only persist workspace/aiPeer to host block if the block already had them
   // or if they differ from the default for this host.  This prevents root
   // fallback values from being materialized into host overrides.
-  setHostIfExplicit("workspace", config.workspace, existing.workspace ?? DEFAULT_WORKSPACE[host]);
-  setHostIfExplicit("aiPeer", config.aiPeer, existing.aiPeer ?? DEFAULT_AI_PEER[host]);
+  // A workspace or aiPeer taken from HONCHO_WORKSPACE / HONCHO_AI_PEER is a
+  // runtime value (e.g. one workspace per repo from a shell hook). Writing it
+  // to the host block would pin every later session to it.
+  const workspaceForSave = process.env.HONCHO_WORKSPACE && config.workspace === process.env.HONCHO_WORKSPACE
+    ? existingHost.workspace
+    : config.workspace;
+  const aiPeerForSave = process.env.HONCHO_AI_PEER && config.aiPeer === process.env.HONCHO_AI_PEER
+    ? existingHost.aiPeer
+    : config.aiPeer;
+  setHostIfExplicit("workspace", workspaceForSave, existing.workspace ?? DEFAULT_WORKSPACE[host]);
+  setHostIfExplicit("aiPeer", aiPeerForSave, existing.aiPeer ?? DEFAULT_AI_PEER[host]);
 
   // Don't persist env-only overrides to the host block.
   // mergeWithEnvVars() may have set enabled, logging or saveMessages to false

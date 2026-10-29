@@ -58,3 +58,48 @@ describe("HONCHO_SAVE_MESSAGES over a config file", () => {
     }
   });
 });
+
+function withHome<T>(fileConfig: Record<string, unknown>, fn: (home: string, configPath: string) => T): T {
+  const home = mkdtempSync(join(tmpdir(), "honcho-home-"));
+  try {
+    mkdirSync(join(home, ".honcho"), { recursive: true });
+    const configPath = join(home, ".honcho", "config.json");
+    writeFileSync(configPath, JSON.stringify({ apiKey: "k", peerName: "t", ...fileConfig }));
+    return fn(home, configPath);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}
+
+describe("HONCHO_AI_PEER and HONCHO_WORKSPACE over a config file", () => {
+  // Hosts such as codex run this plugin as claude_code. HONCHO_AI_PEER set per
+  // process gives them their own AI peer; a shell hook sets HONCHO_WORKSPACE
+  // per repo. Neither may be written back, or every later session is pinned.
+  test("HONCHO_AI_PEER overrides the resolved AI peer", () => {
+    const out = withHome({ workspace: "w" }, (home) =>
+      runInSandbox(home, `import { loadConfig } from "./src/config.ts";
+        console.log(loadConfig("claude_code")?.aiPeer);`, { HONCHO_AI_PEER: "codex" }));
+    expect(out).toBe("codex");
+  });
+
+  test("env workspace and AI peer are not written to the host block", () => {
+    withHome({ workspace: "root-ws", globalOverride: false }, (home, configPath) => {
+      runInSandbox(home, `import { loadConfig, setSessionForPath } from "./src/config.ts";
+        console.log(loadConfig("claude_code")?.workspace);
+        setSessionForPath("/tmp/project", "project-session");`,
+        { HONCHO_WORKSPACE: "repo-ws", HONCHO_AI_PEER: "codex" });
+      const written = JSON.parse(readFileSync(configPath, "utf-8"));
+      expect(written.sessions["/tmp/project"]).toBe("project-session");
+      expect(written.hosts?.claude_code?.workspace).toBeUndefined();
+      expect(written.hosts?.claude_code?.aiPeer).toBeUndefined();
+    });
+  });
+
+  test("an explicit host-block AI peer survives a run with HONCHO_AI_PEER", () => {
+    withHome({ hosts: { claude_code: { workspace: "w", aiPeer: "mine" } } }, (home, configPath) => {
+      runInSandbox(home, `import { setSessionForPath } from "./src/config.ts";
+        setSessionForPath("/tmp/project", "project-session");`, { HONCHO_AI_PEER: "codex" });
+      expect(JSON.parse(readFileSync(configPath, "utf-8")).hosts.claude_code.aiPeer).toBe("mine");
+    });
+  });
+});
